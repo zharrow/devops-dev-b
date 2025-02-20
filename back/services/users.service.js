@@ -104,6 +104,9 @@ export const create = async (username, password, firstName, lastName) => {
     })
     if (count > 0) throw new Error('Username already exists')
 
+    console.log("BCRYPT_SALT_ROUNDS:", process.env.BCRYPT_SALT_ROUNDS);
+    console.log("Type de BCRYPT_SALT_ROUNDS:", typeof process.env.BCRYPT_SALT_ROUNDS);
+
     const encryptedPassword = bcrypt.hashSync(password, parseInt(process.env.BCRYPT_SALT_ROUNDS))
 
     const user = await prisma.user.create({

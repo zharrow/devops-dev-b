@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./back
+      args:
+        DATABASE_URL: "file:./prisma/dev.db"
+        JWT_SECRET: "secret"
+        BCRYPT_SALT_ROUNDS: "10"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./back/prisma/dev.db:/prisma/dev.db
+    environment:
+      - DATABASE_URL=file:./prisma/dev.db
+      - JWT_SECRET=secret
+      - BCRYPT_SALT_ROUNDS=10
+    networks:
+      - app-network
+
+  frontend:
+    build:
+      context: ./front
+      args:
+        VITE_API_URL: "http://localhost:3000"
+    ports:
+      - "8080:80"
+    environment:
+      - VITE_API_URL=http://localhost:3000
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
