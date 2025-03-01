@@ -1,0 +1,44 @@
+name: Deploy Frontend to Scaleway
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'front/**'
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Log in to Docker Hub
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+      - name: Build and push frontend image
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/app-frontend:latest ./front
+          docker push ${{ secrets.DOCKER_USERNAME }}/app-frontend:latest
+
+      - name: Install Scaleway CLI
+        run: |
+          curl -fsSL https://github.com/scaleway/scaleway-cli/releases/latest/download/scw-linux-x86_64 -o scw
+          chmod +x scw
+          sudo mv scw /usr/local/bin/
+
+      - name: Configure Scaleway CLI
+        run: |
+          scw config set access-key=${{ secrets.SCW_ACCESS_KEY }}
+          scw config set secret-key=${{ secrets.SCW_SECRET_KEY }}
+          scw config set organization-id=${{ secrets.SCW_ORG_ID }}
+          scw config set project-id=${{ secrets.SCW_PROJECT_ID }}
+
+      - name: Deploy frontend to Scaleway
+        run: |
+          scw container container create name=frontend \
+          image=${{ secrets.DOCKER_USERNAME }}/app-frontend:latest \
+          min-scale=1 max-scale=1 port=80 || true
