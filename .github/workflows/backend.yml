@@ -1,8 +1,6 @@
 name: Deploy Backend to Scaleway
 
 on:
-  tag: 
-  
   push:
     branches:
       - main
