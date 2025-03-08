@@ -2,3 +2,7 @@ node_modules
 npm-debug.log
 .DS_Store
 .git
+prisma/migrations/
+prisma/file.db
+node_modules/
+.env

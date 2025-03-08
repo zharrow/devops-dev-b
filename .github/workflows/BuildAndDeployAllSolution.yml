@@ -1,0 +1,98 @@
+name: Deploy Full Application
+on: 
+  push:
+    branches:
+      - main
+
+jobs: 
+  Build-Push-Backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+      
+      - name: Login to Scaleway
+        run: echo "${{ secrets.API_SECRET_KEY }}" | docker login rg.fr-par.scw.cloud/namespace-edgar-andre -u nologin --password-stdin
+
+      - name: Build Backend
+        run: docker build -t devops-dev-b-back ./back --build-arg DEFAULT_ADMIN_PASSWORD=${{ secrets.ADMIN_SECRET }}
+
+      - name: Tag & Push Backend Image
+        run: |
+          docker tag devops-dev-b-back:latest rg.fr-par.scw.cloud/namespace-edgar-andre/devops-dev-b-back:latest 
+          docker push rg.fr-par.scw.cloud/namespace-edgar-andre/devops-dev-b-back:latest
+
+  Deploy-Backend:
+    runs-on: ubuntu-latest
+    needs: Build-Push-Backend
+    outputs:
+      backend_url: ${{ steps.deploy_container.outputs.container_url }}
+    
+    steps:
+      - name: Connect to Scaleway CLI
+        uses: scaleway/action-scw@v0.0.2
+        with:
+          access-key: "${{ secrets.API_ACCESS_KEY }}"
+          secret-key: "${{ secrets.API_SECRET_KEY }}"
+          default-project-id: 72e49469-ee5f-4f2f-b2b5-9c17b99d0f28
+          default-organization-id: 909c2e48-12fc-47bf-b8ef-360a60b07500
+          save-config: true
+
+      - name: Deploy Backend Container
+        id: deploy_container
+        run: |
+          RESULT=$(scw container container create name=deployed-backend \
+            namespace-id=c61504f2-6166-4b9d-81de-1318393afa6f \
+            registry-image=rg.fr-par.scw.cloud/namespace-edgar-andre/devops-dev-b-back:latest \
+            port=3000 max-scale=1 cpu-limit=100 memory-limit=128 \
+            -o json)
+          
+          echo "Container response: $RESULT"
+          URL=$(echo "$RESULT" | jq -r '.domain_name')
+          
+          echo $URL
+          echo "container_url=$URL" >> "$GITHUB_ENV"
+          echo "container_url=$URL" >> "$GITHUB_OUTPUT"
+
+  Build-Push-Frontend:
+    runs-on: ubuntu-latest
+    needs: Deploy-Backend  
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Login to Scaleway
+        run: echo "${{ secrets.API_SECRET_KEY }}" | docker login rg.fr-par.scw.cloud/namespace-edgar-andre -u nologin --password-stdin
+
+      - name: Build Frontend
+        run: |
+          echo "Utilisation de l'URL du backend: ${{ needs.Deploy-Backend.outputs.backend_url }}"
+          docker build -t devops-dev-b-front --build-arg VITE_API_URL="https://${{ needs.Deploy-Backend.outputs.backend_url }}/" ./front
+
+      - name: Tag & Push Frontend Image
+        run: |
+          docker tag devops-dev-b-front:latest rg.fr-par.scw.cloud/namespace-edgar-andre/devops-dev-b-front:latest
+          docker push rg.fr-par.scw.cloud/namespace-edgar-andre/devops-dev-b-front:latest
+
+  Deploy-Frontend:
+    runs-on: ubuntu-latest
+    needs: Build-Push-Frontend
+
+    steps:
+      - name: Connect to Scaleway CLI
+        uses: scaleway/action-scw@v0.0.2
+        with:
+          access-key: "${{ secrets.API_ACCESS_KEY }}"
+          secret-key: "${{ secrets.API_SECRET_KEY }}"
+          default-project-id: 72e49469-ee5f-4f2f-b2b5-9c17b99d0f28
+          default-organization-id: 909c2e48-12fc-47bf-b8ef-360a60b07500
+          save-config: true
+
+      - name: Deploy Frontend Container
+        run: |
+          scw container container create name=deployed-frontend \
+          namespace-id=c61504f2-6166-4b9d-81de-1318393afa6f \
+          registry-image=rg.fr-par.scw.cloud/namespace-edgar-andre/devops-dev-b-front:latest \
+          port=80 max-scale=1 cpu-limit=100 memory-limit=128
+

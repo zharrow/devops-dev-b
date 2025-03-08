@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  front:
+    build:
+      context: ./front
+      args:
+        VITE_API_URL: http://localhost:3000/
+    container_name: my-api-front
+    ports:
+      - "8080:80"
+
+  back:
+    build: ./back/.
+    container_name: my-api-back
+    environment:
+      DATABASE_URL: "file:./file.db"
+      JWT_SECRET: "your_secret"
+      BCRYPT_SALT_ROUNDS: 10
+    command: >
+      sh -c "
+        npx prisma db push
+        node server.js
+      "
+    ports:
+      - "3000:3000"
